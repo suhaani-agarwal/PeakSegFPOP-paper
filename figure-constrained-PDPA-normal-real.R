@@ -1216,7 +1216,7 @@ safe_labeller <- function(var, val) {
 }
 
 viz <- list(
-  title = "Constrained Pruned Dynamic Programming Algorithm",
+  title = "Demo of Constrained Pruned Dynamic Programming Algorithm",
   source = "https://github.com/suhaani-agarwal/PeakSegFPOP-paper/blob/master/figure-constrained-PDPA-normal-real.R",
   funModels = ggplot() +
     theme_bw() +
@@ -1370,4 +1370,4 @@ if(nrow(cost.active) > 0){
 }
 
 # Save the visualization
-animint2dir(viz, "Demo_Constrained_PDPA")
+animint2pages(viz, "Demo_Constrained_PDPA")
