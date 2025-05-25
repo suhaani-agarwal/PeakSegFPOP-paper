@@ -1,5 +1,9 @@
-source("packages.R")
-data(intreg, package="animint")
+
+
+# options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+library(animint2)
+library(data.table)
 
 ##options(warn=2)
 
@@ -189,7 +193,7 @@ less.more.min.list <- list(
           ifelse(decreasing.to.right, "decreasing", "increasing"))),
           vjust=1.5,
           data=min.text)
-      ##print(gg.funs)
+      print(gg.funs)
       row.i <- row.i-1
     }
     do.call(rbind, rev(new.dt.list))
@@ -742,16 +746,7 @@ MinEnvelope <- function(dt1, dt2){
     row.diff <- row1-row2
     row.diff$min.mean <- min(row1$min.mean, row2$min.mean)
     row.diff$max.mean <- max(row1$max.mean, row2$max.mean)
-    ggplot()+
-      theme_bw()+
-      theme(panel.margin=grid::unit(0, "lines"))+
-      facet_grid(y ~ ., scales="free")+
-      geom_line(aes(mean, cost, color=fun.i),
-                data.table(getLines(row1),fun.i=factor(1),y="cost"))+
-      geom_line(aes(mean, cost, color=fun.i),
-                data.table(getLines(row2),fun.i=factor(2),y="cost"))+
-      geom_line(aes(mean, cost),
-                data.table(getLines(row.diff),y="diff"))
+    
     discriminant <- row.diff[, linear^2 - 4*quadratic*constant]
     cross.dt <- if(0 < discriminant){
       numerator <- -row.diff$linear + c(-1,1)*sqrt(discriminant)
@@ -982,7 +977,8 @@ envelope.list <- list()
 data.vec <- -subset(intreg$signals, signal=="4.2")$logratio[80:200]
 ## TODO: increase the number of data points and see where the bug is
 ## coming from.
-data.vec <- data.vec[1:40]
+# data.vec <- data.vec[1:40]
+data.vec <- -subset(intreg$signals, signal=="4.2")$logratio[80:200]
 min.mean <- min(data.vec)
 max.mean <- max(data.vec)
 gamma.dt <- data.table(
@@ -997,7 +993,7 @@ cost.models.list <- list()
 for(data.i in 1:nrow(C1.dt)){
   cost.models.list[[paste(1, data.i)]] <- C1.dt[data.i,]
 }
-max.segments <- 3
+max.segments <- 5
 for(total.segments in 2:max.segments){
   prev.cost.model <- cost.models.list[[paste(total.segments-1, total.segments-1)]]
   if(total.segments %% 2){
@@ -1091,51 +1087,7 @@ envelope[, data.i.fac := factor(data.i)]
 envelope[, minimization := paste(
   total.segments, "segments up to data point", timestep)]
 
-gg.pruning <- ggplot()+
-  theme_bw()+
-  theme(panel.margin=grid::unit(0, "lines"))+
-  facet_grid(timestep ~ total.segments, scales="free",
-             labeller=function(var, val){
-               if(var %in% c("total.segments", "timestep")){
-                 paste(var, "=", val)
-               }else{
-                 paste(val)
-               }
-             })+
-  geom_line(aes(mean, cost, group=data.i.fac),
-            color="grey",
-            size=2,
-            data=envelope)+
-  geom_line(aes(mean, cost, color=data.i.fac),
-            data=cost.lines)+
-  geom_point(aes(min.cost.mean, min.cost, color=data.i.fac),
-             data=minima)
-
-save.image("figure-constrained-PDPA-normal-real.RData")
-
-ti <- 35
-gg.pruning <- ggplot()+
-  ##coord_cartesian(xlim=c(-0.2, 0), ylim=c(0, 0.3))+
-  theme_bw()+
-  theme(panel.margin=grid::unit(0, "lines"))+
-  facet_grid(timestep ~ total.segments, scales="free",
-             labeller=function(var, val){
-               if(var %in% c("total.segments", "timestep")){
-                 paste(var, "=", val)
-               }else{
-                 paste(val)
-               }
-             })+
-  geom_line(aes(mean, cost),
-            color="grey",
-            size=2,
-            data=envelope[timestep==ti,])+
-  geom_line(aes(mean, cost, group=paste(data.i.fac, piece.i),
-                color=data.i.fac),
-            data=cost.lines[timestep==ti,])+
-  geom_point(aes(min.cost.mean, min.cost, color=data.i.fac),
-             data=minima[timestep==ti,])
-print(gg.pruning)
+ti <- 35 
 
 data.lines.list <- list()
 data.minima.list <- list()
@@ -1256,163 +1208,166 @@ addY <- function(dt, y){
   data.table(dt, y=factor(y, c("data value", "intervals", "segments")))
 }
 largest.constant <- envelope[quadratic==0, max(constant)]
+
+
+safe_labeller <- function(var, val) {
+  if(missing(val)) val <- var
+  ifelse(val != "pruning", paste("segment", val), val)
+}
+
 viz <- list(
-  title=paste(
-    "Constrained Pruned Dynamic Programming Algorithm"),
-  funModels=ggplot()+
-    theme_bw()+
-    theme(panel.margin=grid::unit(0, "lines"))+
-    theme_animint(width=800, height=300)+
-    coord_cartesian(ylim=c(0, max(between.intervals$cost)))+
-    geom_line(aes(mean, cost,
-                  key=1,
-                  showSelected=total.segments, showSelected2=timestep),
-              color="grey",
-              size=8,
-              data=data.table(envelope, seg.i="pruning"))+
-    geom_line(aes(mean, cost, color=data.i.fac,
-                  group=paste(piece.i, data.i),
-                  key=paste(cost.type, min.mean, max.mean),
-                  showSelected=total.segments, showSelected2=timestep),
-              data=data.table(cost.lines, seg.i="pruning"))+
-    ## geom_point(aes(min.cost.mean, min.cost, color=data.i.fac,
-    ##                showSelected=total.segments, showSelected2=timestep),
-    ##            size=5,
-    ##            data=data.table(minima, seg.i="pruning"))+    
-    facet_grid(. ~ seg.i, scales="free", labeller=function(var, val){
-      paste(ifelse(val!="pruning", "segment", ""), val)
-    })+
-    geom_tallrect(aes(xmin=min.mean, xmax=max.mean,
-                      key=timestep,
-                      showSelected=total.segments,
-                      showSelected2=timestep),
-                  fill="grey",
-                  alpha=0.5,
-                  color=NA,
-                  data=data.infeasible)+
-    geom_line(aes(mean, cost, color=data.i.fac,
-                  group=piece.i,
-                  ##key=quadratic-timestep,
-                  key=paste(min.mean, max.mean),
-                  showSelected=total.segments,
-                  showSelected2=timestep),
-              data=data.lines)+
-    guides(color="none"),
-  data=ggplot()+
-    theme_bw()+
-    theme(panel.margin=grid::unit(0, "lines"))+
-    theme_animint(width=800, height=300)+
-    facet_grid(y ~ ., scales="free")+
+  title = "Constrained Pruned Dynamic Programming Algorithm",
+  source = "https://github.com/suhaani-agarwal/PeakSegFPOP-paper/blob/master/figure-constrained-PDPA-normal-real.R",
+  funModels = ggplot() +
+    theme_bw() +
+    theme_animint(width = 900, height = 300) +
+    guides(color = "none") +
+    
+    coord_cartesian(ylim = c(0, max(between.intervals$cost))) +
+    geom_line(
+      aes(mean, cost, key = 1),
+      color = "grey",
+      size = 8,
+      showSelected = c("timestep", "total.segments"),
+      data = data.table(envelope, seg.i = "pruning")
+    ) +
+    geom_line(
+      aes(mean, cost, color = data.i.fac, group = paste(piece.i, data.i), key=paste(cost.type, min.mean, max.mean)),
+      showSelected = c("total.segments", "timestep"),
+      data = data.table(cost.lines, seg.i = "pruning")
+    ) +
+    # facet_grid(. ~ seg.i, scales = "free") +
+      facet_grid(. ~ seg.i, scales = "free", 
+               labeller = labeller(seg.i = function(x) {
+                 ifelse(x == "pruning", "pruning", paste("segment", x))
+               })) +
+    
+    geom_tallrect(
+      aes(xmin = min.mean, xmax = max.mean, key = timestep),
+      fill = "grey",
+      alpha = 0.5,
+      color = NA,
+      showSelected = c("total.segments", "timestep"),
+      data = data.infeasible
+    ) +
+    geom_line(
+      aes(mean, cost, color = data.i.fac, group = piece.i, key=paste(min.mean, max.mean)),
+      showSelected = c("total.segments", "timestep"),
+      data = data.lines
+    ),
+  
+  data = ggplot() +
+    theme_bw() +
+    theme_animint(width = 900, height = 470) +
+    # theme(panel.spacing = grid::unit(0, "lines")) +
+    facet_grid(y ~ ., scales = "free") +
     geom_point(aes(position, count),
-               data=addY(data.dt, "data value"))+
-    geom_vline(aes(xintercept=segment.start-0.5,
-                   key=seg.i,
-                   showSelected=total.segments,
-                   showSelected2=timestep),
-               data=addY(data.minima[1<segment.start,], "data value"),
-               color="green",
-               linetype="dashed")+
-    geom_segment(aes(segment.start-0.45, min.cost.mean,
-                     showSelected=total.segments,
-                     showSelected2=timestep,
-                     key=seg.i,
-                     xend=segment.end+0.45, yend=min.cost.mean),
-                 data=addY(data.minima, "data value"),
-                 color="green")+
-    guides(color="none")+
-    geom_tallrect(aes(xmin=timestep-0.5, xmax=timestep+0.5,
-                      clickSelects=timestep),
-                  data=data.table(timestep=seq_along(data.vec)),
-                  alpha=0.5)+
-    geom_line(aes(timestep, intervals, group=total.segments,
-                  clickSelects=total.segments),
-               data=addY(data.intervals, "intervals"))+
-    geom_tile(aes(timestep, total.segments, fill=optimal.cost),
-              data=addY(data.cost, "segments"))+
-    geom_widerect(aes(ymin=total.segments-0.5, ymax=total.segments+0.5,
-                      clickSelects=total.segments),
-                  alpha=0.5,
-                  data=addY(
-                    data.table(total.segments=1:max.segments), "segments"))+
-    ylab("")+
+               data = addY(data.dt, "data value")) +
+    geom_vline(
+      aes(xintercept = segment.start - 0.5, key=seg.i),
+      color = "green",
+      linetype = "dashed",
+      showSelected = c("total.segments", "timestep"),
+      data = addY(data.minima[1 < segment.start, ], "data value")
+    ) +
+    geom_segment(
+      aes(segment.start - 0.45, min.cost.mean, key=seg.i,
+          xend = segment.end + 0.45, yend = min.cost.mean),
+      color = "green",
+      showSelected = c("total.segments", "timestep"),
+      data = addY(data.minima, "data value")
+    ) +
+    geom_tallrect(
+      aes(xmin = timestep - 0.5, xmax = timestep + 0.5, key = timestep),
+      clickSelects = "timestep",
+      alpha = 0.5,
+      data = data.table(timestep = seq_along(data.vec))
+    ) +
+    geom_line(
+      aes(timestep, intervals, group = total.segments),
+      clickSelects = "total.segments",
+      data = addY(data.intervals, "intervals")
+    ) +
+    geom_tile(
+      aes(timestep, total.segments, fill = optimal.cost),
+      data = addY(data.cost, "segments"), color = NA
+    ) +
+    geom_widerect(
+      aes(ymin = total.segments - 0.5, ymax = total.segments + 0.5),
+      clickSelects = "total.segments",
+      alpha = 0.5,
+      data = addY(data.table(total.segments = 1:max.segments), "segments")
+    )+ylab("")+
     scale_x_continuous(
       "data point",
       breaks=unique(c(seq(1, length(data.vec), by=10), length(data.vec)))),
-  time=list(variable="timestep", ms=2000),
-  duration=list(timestep=2000)
+  
+  # time = list(variable = "timestep", ms = 2000),
+  # duration = list(timestep = 2000)
+  # Animation parameters
+  duration = list(
+    timestep = 2000,
+    total.segments = 1000 
+  ),
+  
+  time = list(
+    variable = "timestep",
+    ms = 2000
+  ),
+  
+  selector.types = list(
+    timestep = "single",
+    total.segments = "single"
+  )
 )
-minima.active <- data.minima[constraint=="active",]
-if(nrow(minima.active)){
-  viz$funModels <- viz$funModels+
-    geom_point(aes(min.cost.mean, min.cost,
-                   key=data.i,
-                   showSelected=total.segments, showSelected2=timestep),
-               size=6,
-               shape=21,
-               fill="white",
-               color="black",
-               data=minima.active)
+
+# Add conditional elements
+minima.active <- data.minima[constraint == "active", ]
+if(nrow(minima.active) > 0){
+  viz$funModels <- viz$funModels +
+    geom_point(
+      aes(min.cost.mean, min.cost),
+      size = 6,
+      shape = 21,
+      fill = "white",
+      color = "black",
+      showSelected = c("total.segments", "timestep"),
+      data = minima.active
+    )
 }
-viz$funModels <- viz$funModels+
-  geom_point(aes(min.cost.mean, min.cost, color=data.i.fac,
-                 tooltip=paste(
-                   "minimum cost =",
-                   round(min.cost, 4),
-                   "with",
-                   constraint,
-                   "constraint at mean =",
-                   round(min.cost.mean, 4),
-                   "for",
-                   seg.i,
-                   "segment model up to data point",
-                   segment.end,
-                   "previous segment end =",
-                   data.i
-                 ),
-                 key=data.i,
-                 showSelected=total.segments, showSelected2=timestep),
-             size=5,
-             data=data.minima)+
-  geom_point(aes(mean, cost,
-                 key=mean,
-                 showSelected=total.segments, showSelected2=timestep),
-             data=between.intervals)  
-cost.active <- data.cost[constraint=="active",]
-if(nrow(cost.active)){
-  viz$data <- viz$data+
-    geom_point(aes(timestep, total.segments),
-               shape=21,
-               color="black",
-               fill="white",
-               data=addY(cost.active, "segments"))
+
+viz$funModels <- viz$funModels +
+  geom_point(
+    aes(min.cost.mean, min.cost, color = data.i.fac),
+    tooltip = paste(
+      "minimum cost =", round(data.minima$min.cost, 4),
+      "with", data.minima$constraint,
+      "constraint at mean =", round(data.minima$min.cost.mean, 4),
+      "for", data.minima$seg.i,
+      "segment model up to data point", data.minima$segment.end,
+      "previous segment end =", data.minima$data.i
+    ),
+    showSelected = c("total.segments", "timestep"),
+    size = 5,
+    data = data.minima
+  ) +
+  geom_point(
+    aes(mean, cost),
+    showSelected = c("total.segments", "timestep"),
+    data = between.intervals
+  )
+
+cost.active <- data.cost[constraint == "active", ]
+if(nrow(cost.active) > 0){
+  viz$data <- viz$data +
+    geom_point(
+      aes(timestep, total.segments),
+      shape = 21,
+      color = "black",
+      fill = "white",
+      data = addY(cost.active, "segments")
+    )
 }
-animint2dir(viz, "figure-constrained-PDPA-normal-real")
 
-mlcost <- function(d.vec){
-  m <- mean(d.vec)
-  sum((d.vec-m)^2)
-}
-m34 <- mean(data.vec[3:4])
-mlcost(data.vec[1:3])+(data.vec[4]-m34)
-mlcost(data.vec[1:2])+mlcost(data.vec[3:4])
-mlcost(data.vec[1:2])+mlcost(data.vec[3])
-mlcost(data.vec[2:3])+mlcost(data.vec[1])
-
-intervalsPlot <- ggplot()+
-  theme_bw()+
-  theme(panel.margin=grid::unit(0, "lines"))+
-  facet_grid(total.segments ~ .)+
-  geom_point(aes(timestep, intervals),
-             data=data.intervals)
-
-pdf("figure-constrained-PDPA-normal-real.pdf")
-print(intervalsPlot)
-dev.off()
-
-## FunctionalPruning <- list(
-##   envelope=data.frame(envelope),
-##   cost.lines=data.frame(cost.lines),
-##   minima=data.frame(minima),
-##   grid=data.frame(data.cost))
-## save(FunctionalPruning, file="~/R/animint/data/FunctionalPruning.RData")
-## prompt(FunctionalPruning, file="~/R/animint/man/FunctionalPruning.Rd")
+# Save the visualization
+animint2dir(viz, "Demo_Constrained_PDPA")
